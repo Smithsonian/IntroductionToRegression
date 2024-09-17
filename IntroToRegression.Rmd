@@ -1,0 +1,380 @@
+---
+title: "Introduction to Regression Models"
+author: "Smithsonian's National Zoo & Conservation Biology Institute"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output:
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float: 
+      collapsed: true
+      smooth_scroll: true
+    number_sections: false
+pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<a href="https://github.com/Smithsonian/IntroductionToRegression.git" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+### Learning Objectives
+
+* Practice loading a real-world dataset into R
+* Learn the basics of performing and interpreting a regression analysis
+* Use AIC to compare regression models
+
+## Introduction to Regression Models
+
+Now that you've learned the basics of **R** programming and data manipulation, we'll start working on some basic skills related to data analysis.  We will import a dataset from cattle grazing plots in Brazil that includes grazing height, livestock standing stock, grass biomass, grass accumulation rates, and livestock weight gain. The goal of this exercise is to practice some basic skills in **R** programming while reviewing some key ideas in regression modelling.  This lesson will help as we move towards our ultimate goal of conducting more advanced analyses on animal count data.
+
+### Preparing to Work in an R Script
+
+As we have done previously, you will want to create an R script:
+
+1. From the "File" menu, select "New File"
+2. Click "R Script" from the list of options
+3. Save the R script in your working directly in the `Scripts` folder.  Name this file `IntroToRegression.R`
+4. Make a comment at the top of your script with your name, the date, and the purpose of the script.
+
+```{r, eval=F}
+# ******************************************************************
+# ******************************************************************
+
+# Project: Introduction to Regression in R
+# Description: A practice script which an example regression analysis
+# Author: <Your Name>
+# Date Initialized: <dd month yyyy>
+
+# ******************************************************************
+# ******************************************************************
+```
+
+### Clear Workspace and Load Packages
+
+As we've done previously, we will 'clean up' our Workspace when starting a new session. We will also make sure the dplyr package is loaded for doing data manipulation.
+
+```{r}
+# Clean your workspace/remove all objects
+rm(list=ls())
+
+#install.packages("dplyr")
+library(dplyr)
+```
+
+## Data Management 
+
+### Exploring the Data
+
+Let's start investigating a dataset to later fit some regression models.
+
+Load the grazing plot dataset. This dataset should be in the data folder within your R project directory. We will use this simple dataset as it is a good example of a dataset with several possible relationships to explore among response and predictor variables. The data for this exercise were taken from a published manuscript:
+
+Soares et al., 2020. Ciencia Rural 50(1). DOI: 10.1590/0103-8478cr20180837
+
+```{r, eval = T, echo = T, warning=F, message=F}
+# Read dataset
+Grazing_Data <- read.csv("Data/GrassHeightData.csv")
+
+# Look at the data
+head(Grazing_Data)
+``` 
+
+Assess the overall structure of the data set to get a sense of the number and type of variables included. When you work with your own data, you will be familiar with the data structure, but it is always good practice to examine your data before moving on to any model fitting. Make sure that the data structure of each column of the data frame is correct and what you expect it to be. 
+
+Note, all columns/variables included in this sample dataset are numeric-type. You can confirm the data type of each column by typing **is.numeric()** next to the variable name (e.g., `is.numeric(Grazing_Data$GrassHt)`). 
+
+```{r}
+str(Grazing_Data)
+```
+
+Now, summarize the data to provide a list of each variable with the mean, min, and max.
+
+```{r}
+summary(Grazing_Data)
+```
+
+If you plot some data, you should be able to see cases where there seems to be a strong relationship between two variables. "GrazingHt" vs. "HerbageMass" is a good example of this. This is the height that pasture has been grazed to vs. the total biomass of vegetation.  We can plot these two variables against each other to examine the relationship closer. 
+
+```{r, echo=T, eval=T}
+plot(Grazing_Data$HerbageMass, Grazing_Data$GrazingHt)
+```
+
+**Question**: 
+
+1. Is the slope here positive or negative?
+
+### Basic Plotting
+
+You could plot any of the variables in the dataframe. Plotting the data is one of the simplest ways to look at and explore your data.
+
+In **R** you can learn lots of ways to customize your plots. But for now, let's change the 'x' and 'y' variable names and add a title to this plot.
+
+```{r}
+plot(Grazing_Data$HerbageMass ~ Grazing_Data$GrazingHt,
+     xlab="Grazing Height",
+     ylab="Dry Biomass",
+     main="Relationship between Grazing Height and Pasture Biomass")
+```
+
+**Questions**: 
+
+1. Make a plot to show the relationship between cattle stocking rate and grazing height
+2. The `cor(<variable1>,<variable2>)` function can be used to calculate the correlation between two variables. What is the correlation between stocking rate and grazing height? Is this positive or negative?
+
+
+## Statistical Modelling
+
+Let's move on to data analysis!
+
+### General Principles
+
+When building an statistical model, you need to specify a **dependent variable** (what you are trying to explain) and one or more **independent variables** (the variables that you are using to explain the dependent variable).
+
+Thus, to build a model you will first need to identify the dependent and independent variables based on your research questions. Once you have identified these variables, you need to decide what kind of model structure is appropriate for your dataset. For this reason, knowing models and model structures can help you design the data collection process as you have a good idea of what type of data you need for a specific model.
+
+Running models can be easy, but before you can make interpretations from the model, you need to check that the assumptions of the model are valid **(model validation)**, decide what is the best model structure **(model selection)** and then, finally, **interpret the parameters of the model and/or make predictions.**
+
+The general structure for defining any model in **R** is:
+
+**model.type(dependent.variable ~ independent.variable1 + independent.variable2, data = dataframe)**
+
+Note that in the model equation you do not have to specify the intercept. We have assumed in this example that there are 2 different independent variables in the example provided (independent.variable1 and independent.variable2), but you could build a model that contains any number of independent variables.
+
+### Linear Regression
+
+We will start with a simple linear regression analysis.
+
+**Questions**: 
+
+Make a plot to show the relationship between cattle stocking rate and grazing height
+
+### Model design and model fit
+
+Model design involves deciding **what we are trying to explain** (i.e., the dependent variable) and **what we are going to use to explain it** (i.e., the independent variables).  These are questions that are informed by the researcher.
+
+Then, we need to decide **what kind of model structure** is appropriate for the dataset. In our case, we will start with a simple linear regression model. Later in the course, however, we will investigate more complex model structures.
+
+Now, we will run several basic linear regression models that attempt to explain how grazing pressure (grazing height) affects various dependent variables, like cattle weight gain and vegetation biomass accumulation rates.  Finally, we will assign the model output to an object name "mod1". Remember to specify the `Grazing_Data` dataset in the model so that **R** understands that the name of dependent and independent variables are columns in that specific dataframe.
+
+```{r}
+# names(Grazing_Data)  # We may want to print the variable names in our dataset before fitting models
+lm1 <- lm(HerbageMass ~ GrazingHt, data = Grazing_Data)
+```
+
+### Investigate your model
+
+Once you have fit the model, you can use the summary function to investigate the beta coefficients, SEs, and intercept value. 
+
+```{r}
+summary(lm1)
+```
+
+
+### Model validation - Checking the assumptions of your model
+
+IMPORTANT: Before you can trust your model, you need to examine whether the assumptions on which the model is based are actually valid. **If the assumptions are not satisfied, then your model will be unreliable**, at least to some extent!
+
+If you apply the function **plot** to the model, **R** will provide a series of plots that will help you to inspect model assumptions. Click enter to get all the plots.
+
+```{r, eval=F}
+plot(lm1)
+```
+
+
+1. **Assumption 1**: The residuals are normally distributed
+
+Check the Q-Q (quantile-quantile) plot. A perfect normal distribution is represented by a straight line. Your residuals should be close to a straight line. You can also use a Shapiro-Wilk test to see if the **residuals** of your model are significantly different from normal (p<0.05 is bad here!)
+
+```{r}
+shapiro.test(lm1$residuals)
+```
+
+2. **Assumption 2**: The variances of the residuals are homogeneous (homoscedasticity)
+
+The variability of the residuals should be uniform across the range of fitted values of the dependent variable. In the plot of **residuals vs fitted values of y** and **standardized residuals vs. fitted values** there should be a "scatter" of dots across the graphs, with no discernible pattern. Points should be randomly distributed.  If you have a scatter of points on one side of the graph, your data may NOT be homogeneous. You can also use a Breush-Pagan test to see if your **residuals** are homogenous (p<0.05 is bad here!)
+
+3. **Assumption 3**: The independent variables are independent of each other (no collinearity)
+
+There are different ways you can address this before you fit your model. For instance, you can estimate the correlation of each pair of covariates and discard variables or exclude them from analysis if they highly correlated (positively or negatively). For example, we would not want a model with stocking rate and grazing height as independent variables, because they are highly correlated with each other.
+
+4. **Assumption 4**: The data set does not contain serial auto-correlation
+
+Serial autocorrelation is when there is significant correlation between successive data points in the data set. Spatial data or time-series data tend to be autocorrelated. There are different ways to deal with autocorrelation, such as using mixed-effect models. 
+
+5. **Assumption 5**: The model is not biased by unduly influential observations.
+
+We can check this by looking at the plot of standardized residuals vs leverage and "Cook's Distance."
+
+Leverage is a measure of the influence of individual data points on the model's parameters, measured on the scale of 0-1, where high values indicate a strong influence on the model's parameters.
+
+Cook's distance is the sum of squared distances between the fitted values using the whole data set, and the fitted values with the *i*th observation removed. A large difference indicates that the *i*th observation exerts a strong influence on the model's parameters.
+
+We don't want values beyond 1. Our 12th observation has a Cook's distance close to 1, but generally we aren't too concerned about outlier effects.
+
+### Visualizing model output
+
+Continuing with interpreting results, the slope value should be `r lm1$coefficients[[2]]`. This means that for each unit of weight added to a car (1 ton), the log of miles per gallon it achieves is predicted to REDUCE by a value of `r abs(lm1$coefficients[[2]])`. There is a negative effect of weight on car efficiency.
+
+The intercept of `r lm1$coefficients[[1]]` sets the start of the regression line at the grazing height of zero. In this case, this isn't very useful (grazing height should never reach 0!) but it is a necessary element of describing a linear relationship. Here, the equation for the line is `HerbageMass = 18.41 + 111.13*GrazingHt`. Note that you can call the individual coefficients from a model directly using, in this example, "lm1$coefficients".
+
+Now, plot again a scatterplot of HerbageMass vs. GrazingHt and draw the regression line.
+
+```{r}
+plot(HerbageMass ~ GrazingHt, data = Grazing_Data)
+abline(lm1, col="blue")
+```
+
+## Model Selection
+
+In any mathematical modeling approach, there may be other variables, or some combination of variables, that are best at predicting your response variable of interest. In this case, let's explore using `HerbageAccumulationRate` as a response variable. Are there any variables that you expect might predict `HerbageAccumulationRate`?  Grazing height (`GrazingHt`) seems potentially informative, as shorter grass is expected to grow slower than taller grass. The question now is whether there is a **better** model for predicting `HerbageAccumulationRate`. If we plot the relationship between these two variables, we see that herbage accumulation rate seems to level off above 25cm grazing height. One option is to consider adding a **quadratic** term to the model to better fit a 'non-linear' relationship.
+
+```{r}
+plot(Grazing_Data$HerbageAccumulationRate ~ Grazing_Data$GrazingHt,
+     xlab="Grazing Height",
+     ylab="Herbage Accumulation Rate",
+     main="Relationship between Grazing Height and Pasture Growth")
+```
+
+Let's say we have two options: 
+1. $HerbageAccumulationRate$ ~ $GrazingHt$
+2. $HerbageAccumulationRate$ ~ $GrazingHt$ +  $GrazingHt^2$
+
+We've already fitted a first model. Let's fit linear regression models for the next two parameter combinations we're interested in. We will give them unique names (`lm2` and `lm3`), and look at the summary of their results.
+
+```{r}
+lm2 <- lm(HerbageAccumulationRate ~ GrazingHt, data = Grazing_Data)
+lm3 <- lm(HerbageAccumulationRate ~ GrazingHt + I(GrazingHt^2), data = Grazing_Data)
+summary(lm2)
+summary(lm3)
+```
+
+As you'll see, both of these models seem very strong good. Which is optimal? Akaike's Information Criteria (AIC) provides a good tool for comparing models. AIC ranks a model's performance by accounting for model fit while penalizing models with more variables. You might know that when you add more independent variables to a model, the model fit will often improve. But, it is certainly not ideal to have a model with a large number of independent variables (because we want to avoid overfitting). When adding a variable, the improved fit of the model must outweigh the AIC penalty, otherwise the improved fit will not be deemed worthwhile given the additional model complexity. 
+
+Use the `AIC` function to compare the AIC values of our next models. The lowest AIC indicates that the model is a "better" representation of the data and has a better predictive power. Note, AIC is not a measure of model fit. 
+
+```{r}
+AIC(lm2)
+AIC(lm3)
+```
+
+What can we conclude? The best model (from the two we have tried) for predicting herbage accumulation rate assumes a non-linear (quadratic) relationship is best (`lm3`). In plain language, what we are seeing is 1) that pasture that is grazed short grows at a slower rate than pasture that is grazed higher, and 2) that accumulation rate levels off at values between 20-25cm.
+
+To finish, let's make a plot with o
+
+new_GrazingHt = seq(0, 40, by=0.1)
+conf_interval <- predict(lm3, newdata=data.frame(GrazingHt=new_GrazingHt), interval="confidence", level = 0.95)
+plot(Grazing_Data$GrazingHt, Grazing_Data$HerbageAccumulationRate, xlab="x", ylab="y", main="Regression", cex=2, pch=19)
+lines(new_GrazingHt, conf_interval[,1], col="blue", lwd=2)
+lines(new_GrazingHt, conf_interval[,2], col="blue", lty=2, lwd=2)
+lines(new_GrazingHt, conf_interval[,3], col="blue", lty=2,lwd=2)
+
+
+
+
+
+
+**Questions**: 
+
+1. Can you change the number of rows that are displayed with the `head()` function?  
+2. How would you print the first 3 rows?
+3. How would you print rows 4 thru 6? 
+4. What are the dimensions of the dataframe?  How many rows and columns are there?
+5. Can you guess how you might look at the last few rows of the dataframe?
+
+## Exercise
+
+Now that you've been exposed to a few functions to better manage data in R, we will reinforce these tools by asking you to apply them to memory by practicing on a dataset of wildlife counts collected across the Naboisho conservancy.  Located in your `Data` folder and named `SampleData.csv`, these data are derived from our publication in the African Journal of Ecology that forms the foundation for this project.
+
+<div style="float:right">
+<img width="150" height="150" src="DataScience.png">
+</div>
+
+Upon import you will note that the dataset is comprised of 5 columns:
+
+* `Date`: The date the transect was conducted
+* `Species`: Species name
+* `GroupSize`: Total number of animals in the counted group
+* `TransectID`: Name of each transect
+* `Year`: Year in which the data were collected
+
+Please create a script named `Exercise1_DataMgmt.R`.  Format the script like we have instructed to do so in this lecture with your `Name`, `Date`, and `Description`.  Then, read in the data and create a fully commented code to answer the following questions:   
+
+1) What are the dimensions of the dataset?  How many rows and columns exist?
+2) What is the data structure of each variable?
+3) How many species were counted?
+4) How many transects are there and what are the names of these transects?
+5) How many unique survey days were completed?  What is the range of dates?
+
+Please use a %>% for the followings questions (you don't need to save the output):
+
+6) What is the maximum group size of giraffe?
+7) What is the mean group size of wildebeest per year?  Include the number of observations in the calculation.
+8) What is the total count of impala observed in 2018?
+9) What is the total number of groups of each species per year?
+10) What is the total number of groups and the mean group size of each species, per year, and per transect?  Sort these by Species, TransectID, and Year.
+
+**Note**: We didn't go over every function to answer these questions.  You may need to troubleshoot and search the web to find the appropriate function.  Remember to use `R-Cran` when searching to limit/fine tune your search.  Using `dplyr` in your search term can also help in narrowing down your search.
+
+The data used for this exercise can be referenced as:
+
+Crego RD, Wells HBM, Connette G, Stabach JA, Soit N, Thompson S. 2023. Monitoring spatiotemporal dynamics of large herbivores across an African rangeland using hierarchical multi-species distance sampling. African Journal of Ecology. [doi:10.1111/aje.13219](https://onlinelibrary.wiley.com/doi/10.1111/aje.13219)
+
+```{r, warning=T, message=T, echo=F, eval=F}
+# Read in the CSV
+survey_sample <- read.csv(file = "Data/SampleData.csv")
+
+# Look at the data
+head(survey_sample)
+
+# Question 1: What are the dimensions of the dataset?  How many rows and columns?
+dim(survey_sample)
+nrow(survey_sample)
+ncol(survey_sample)
+
+# Question 2: What is the data structure of each variable?
+str(survey_sample)
+
+# Question 3: How many species were counted?  
+length(unique(survey_sample$Species))
+n_distinct(survey_sample$Species)
+
+# Question 4: How many transects are there and what are the names of these transects?  Same process, but a different column.
+n_distinct(survey_sample$TransectID)
+unique(survey_sample$TransectID)
+
+# Question 5: How many unique survey days were completed?  What is the range of dates?
+length(unique(survey_sample$Date))
+min(survey_sample$Date)
+max(survey_sample$Date)
+
+# Question 6: What is the maximum group size of giraffe?
+survey_sample %>% 
+  filter(Species == "Giraffe") %>% 
+  summarise(max_grp = max(GroupSize))
+
+# Question 7: What is the mean group size of wildebeest per year?  Include the number of observations in the calculation.
+survey_sample %>% 
+  filter(Species == "Wildebeest") %>% 
+  summarise(mean_grp = mean(GroupSize),
+            n_obs = n(), # This counts the observations, it is not a sum of the observations.
+            .by=Date) 
+
+# Question 8: What is the total count of impala observed in 2018?
+survey_sample %>% 
+  filter(Species == "Impala" & Year == "2018") %>%
+  summarise(sum_impala = sum(GroupSize))
+  
+# Question 9: What is the total number of groups of each species per year?
+survey_sample %>% 
+  summarise(Total_Grps = n(),
+            .by=c(Species, Year))
+  
+# Question 10: What is the total number of groups and the mean group size of each species, per year, and per transect?  Sort these by Species, TransectID, and Year
+survey_sample %>% 
+  summarise(Total_Grps = n(),
+            Mean_Grps = mean(GroupSize),
+            .by = c(Species, Year, TransectID)) %>% 
+  arrange(Species, TransectID, Year)
+```
