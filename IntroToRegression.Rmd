@@ -23,9 +23,10 @@ knitr::opts_chunk$set(echo = TRUE)
 
 * Practice loading a real-world dataset into R
 * Learn the basics of performing and interpreting a regression analysis
+* Understand model assumptions
 * Use AIC to compare regression models
 
-## Introduction to Regression Models
+## Introduction to Regression in R
 
 Now that you've learned the basics of **R** programming and data manipulation, we'll start working on some basic skills related to data analysis.  We will import a dataset from cattle grazing plots in Brazil that includes grazing height, livestock standing stock, grass biomass, grass accumulation rates, and livestock weight gain. The goal of this exercise is to practice some basic skills in **R** programming while reviewing some key ideas in regression modelling.  This lesson will help as we move towards our ultimate goal of conducting more advanced analyses on animal count data.
 
@@ -53,14 +54,15 @@ As we have done previously, you will want to create an R script:
 
 ### Clear Workspace and Load Packages
 
-As we've done previously, we will 'clean up' our Workspace when starting a new session. We will also make sure the dplyr package is loaded for doing data manipulation.
+As we've done previously, we will 'clean up' our Workspace when starting a new session. We will also make sure the dplyr and lmtest packages are loaded for doing data manipulation and checking certain model assumptions.
 
-```{r}
+```{r, message=FALSE}
 # Clean your workspace/remove all objects
 rm(list=ls())
 
-#install.packages("dplyr")
-library(dplyr)
+#install.packages("dplyr", "lmtest")
+library(dplyr)   # For data manipulation
+library(lmtest)  # For checking model assumptions
 ```
 
 ## Data Management 
@@ -71,9 +73,9 @@ Let's start investigating a dataset to later fit some regression models.
 
 Load the grazing plot dataset. This dataset should be in the data folder within your R project directory. We will use this simple dataset as it is a good example of a dataset with several possible relationships to explore among response and predictor variables. The data for this exercise were taken from a published manuscript:
 
-Soares et al., 2020. Ciencia Rural 50(1). DOI: 10.1590/0103-8478cr20180837
+- Soares et al., 2020. Ciencia Rural 50(1). DOI: 10.1590/0103-8478cr20180837
 
-```{r, eval = T, echo = T, warning=F, message=F}
+```{r, eval = T, echo = T, warning=F, message=F, results='hide'}
 # Read dataset
 Grazing_Data <- read.csv("Data/GrassHeightData.csv")
 
@@ -83,7 +85,7 @@ head(Grazing_Data)
 
 Assess the overall structure of the data set to get a sense of the number and type of variables included. When you work with your own data, you will be familiar with the data structure, but it is always good practice to examine your data before moving on to any model fitting. Make sure that the data structure of each column of the data frame is correct and what you expect it to be. 
 
-Note, all columns/variables included in this sample dataset are numeric-type. You can confirm the data type of each column by typing **is.numeric()** next to the variable name (e.g., `is.numeric(Grazing_Data$GrassHt)`). 
+Note, all columns/variables included in this sample dataset are numeric or integer types. You can confirm the data type of each column by typing **is.numeric()** next to the variable name (e.g., `is.numeric(Grazing_Data$GrassHt)`). 
 
 ```{r}
 str(Grazing_Data)
@@ -95,6 +97,8 @@ Now, summarize the data to provide a list of each variable with the mean, min, a
 summary(Grazing_Data)
 ```
 
+### Basic Plotting
+
 If you plot some data, you should be able to see cases where there seems to be a strong relationship between two variables. "GrazingHt" vs. "HerbageMass" is a good example of this. This is the height that pasture has been grazed to vs. the total biomass of vegetation.  We can plot these two variables against each other to examine the relationship closer. 
 
 ```{r, echo=T, eval=T}
@@ -105,11 +109,7 @@ plot(Grazing_Data$HerbageMass, Grazing_Data$GrazingHt)
 
 1. Is the slope here positive or negative?
 
-### Basic Plotting
-
-You could plot any of the variables in the dataframe. Plotting the data is one of the simplest ways to look at and explore your data.
-
-In **R** you can learn lots of ways to customize your plots. But for now, let's change the 'x' and 'y' variable names and add a title to this plot.
+You could plot any of the variables in the dataframe. Plotting the data is one of the simplest ways to look at and explore your data. In **R** you can learn lots of ways to customize your plots. But for now, let's change the 'x' and 'y' variable names and add a title to this plot.
 
 ```{r}
 plot(Grazing_Data$HerbageMass ~ Grazing_Data$GrazingHt,
@@ -128,13 +128,13 @@ plot(Grazing_Data$HerbageMass ~ Grazing_Data$GrazingHt,
 
 Let's move on to data analysis!
 
-### General Principles
+### General principles
 
-When building an statistical model, you need to specify a **dependent variable** (what you are trying to explain) and one or more **independent variables** (the variables that you are using to explain the dependent variable).
+When building a statistical model, you need to specify a **dependent variable** (what you are trying to explain) and one or more **independent variables** (the variables that you are using to explain the dependent variable).
 
 Thus, to build a model you will first need to identify the dependent and independent variables based on your research questions. Once you have identified these variables, you need to decide what kind of model structure is appropriate for your dataset. For this reason, knowing models and model structures can help you design the data collection process as you have a good idea of what type of data you need for a specific model.
 
-Running models can be easy, but before you can make interpretations from the model, you need to check that the assumptions of the model are valid **(model validation)**, decide what is the best model structure **(model selection)** and then, finally, **interpret the parameters of the model and/or make predictions.**
+Running models can be easy, but before you can interpret a model, you need to check that the assumptions of the model are valid **(model validation)**, decide what is the best model structure **(model selection)** and then, finally, **interpret the parameters of the model and/or make predictions.**
 
 The general structure for defining any model in **R** is:
 
@@ -142,37 +142,30 @@ The general structure for defining any model in **R** is:
 
 Note that in the model equation you do not have to specify the intercept. We have assumed in this example that there are 2 different independent variables in the example provided (independent.variable1 and independent.variable2), but you could build a model that contains any number of independent variables.
 
-### Linear Regression
-
-We will start with a simple linear regression analysis.
-
-**Questions**: 
-
-Make a plot to show the relationship between cattle stocking rate and grazing height
-
 ### Model design and model fit
 
 Model design involves deciding **what we are trying to explain** (i.e., the dependent variable) and **what we are going to use to explain it** (i.e., the independent variables).  These are questions that are informed by the researcher.
 
 Then, we need to decide **what kind of model structure** is appropriate for the dataset. In our case, we will start with a simple linear regression model. Later in the course, however, we will investigate more complex model structures.
 
-Now, we will run several basic linear regression models that attempt to explain how grazing pressure (grazing height) affects various dependent variables, like cattle weight gain and vegetation biomass accumulation rates.  Finally, we will assign the model output to an object name "mod1". Remember to specify the `Grazing_Data` dataset in the model so that **R** understands that the name of dependent and independent variables are columns in that specific dataframe.
+Now, we will run several basic linear regression models that attempt to explain how grazing pressure (grazing height) affects various dependent variables, like cattle weight gain and vegetation biomass accumulation rates.  Remember to specify the `Grazing_Data` dataset in the model so that **R** understands that the name of dependent and independent variables are columns in that specific dataframe.
 
 ```{r}
-# names(Grazing_Data)  # We may want to print the variable names in our dataset before fitting models
+# names(Grazing_Data)  # We can print the variable names in our dataset before fitting models
 lm1 <- lm(HerbageMass ~ GrazingHt, data = Grazing_Data)
 ```
 
 ### Investigate your model
 
-Once you have fit the model, you can use the summary function to investigate the beta coefficients, SEs, and intercept value. 
+Once you have fit a model, you can use the summary function to investigate the beta coefficients, SEs, and intercept value. 
 
 ```{r}
 summary(lm1)
 ```
 
 
-### Model validation - Checking the assumptions of your model
+### Model validation
+Checking the assumptions of your model
 
 IMPORTANT: Before you can trust your model, you need to examine whether the assumptions on which the model is based are actually valid. **If the assumptions are not satisfied, then your model will be unreliable**, at least to some extent!
 
@@ -187,13 +180,17 @@ plot(lm1)
 
 Check the Q-Q (quantile-quantile) plot. A perfect normal distribution is represented by a straight line. Your residuals should be close to a straight line. You can also use a Shapiro-Wilk test to see if the **residuals** of your model are significantly different from normal (p<0.05 is bad here!)
 
-```{r}
+```{r, eval=F}
 shapiro.test(lm1$residuals)
 ```
 
 2. **Assumption 2**: The variances of the residuals are homogeneous (homoscedasticity)
 
 The variability of the residuals should be uniform across the range of fitted values of the dependent variable. In the plot of **residuals vs fitted values of y** and **standardized residuals vs. fitted values** there should be a "scatter" of dots across the graphs, with no discernible pattern. Points should be randomly distributed.  If you have a scatter of points on one side of the graph, your data may NOT be homogeneous. You can also use a Breush-Pagan test to see if your **residuals** are homogenous (p<0.05 is bad here!)
+
+```{r, eval=F}
+bptest(lm1)
+```
 
 3. **Assumption 3**: The independent variables are independent of each other (no collinearity)
 
@@ -211,18 +208,19 @@ Leverage is a measure of the influence of individual data points on the model's 
 
 Cook's distance is the sum of squared distances between the fitted values using the whole data set, and the fitted values with the *i*th observation removed. A large difference indicates that the *i*th observation exerts a strong influence on the model's parameters.
 
-We don't want values beyond 1. Our 12th observation has a Cook's distance close to 1, but generally we aren't too concerned about outlier effects.
+We don't want values beyond 1. Our 12th observation has a Cook's distance close to 1, but we aren't too concerned about outlier effects.
 
 ### Visualizing model output
-
-Continuing with interpreting results, the slope value should be `r lm1$coefficients[[2]]`. This means that for each unit of weight added to a car (1 ton), the log of miles per gallon it achieves is predicted to REDUCE by a value of `r abs(lm1$coefficients[[2]])`. There is a negative effect of weight on car efficiency.
 
 The intercept of `r lm1$coefficients[[1]]` sets the start of the regression line at the grazing height of zero. In this case, this isn't very useful (grazing height should never reach 0!) but it is a necessary element of describing a linear relationship. Here, the equation for the line is `HerbageMass = 18.41 + 111.13*GrazingHt`. Note that you can call the individual coefficients from a model directly using, in this example, "lm1$coefficients".
 
 Now, plot again a scatterplot of HerbageMass vs. GrazingHt and draw the regression line.
 
 ```{r}
-plot(HerbageMass ~ GrazingHt, data = Grazing_Data)
+plot(HerbageMass ~ GrazingHt, data = Grazing_Data,
+     xlab="Grazing Height",
+     ylab="Herbage Mass",
+     main="Relationship between Grazing Height and Herbage Accumulation Rate")
 abline(lm1, col="blue")
 ```
 
@@ -234,23 +232,24 @@ In any mathematical modeling approach, there may be other variables, or some com
 plot(Grazing_Data$HerbageAccumulationRate ~ Grazing_Data$GrazingHt,
      xlab="Grazing Height",
      ylab="Herbage Accumulation Rate",
-     main="Relationship between Grazing Height and Pasture Growth")
+     main="Relationship between Grazing Height and Herbage Accumulation Rate")
 ```
 
-Let's say we have two options: 
-1. $HerbageAccumulationRate$ ~ $GrazingHt$
-2. $HerbageAccumulationRate$ ~ $GrazingHt$ +  $GrazingHt^2$
+Let's say we have two options:  
+1. $HerbageAccumulationRate$ ~ $GrazingHt$  
+2. $HerbageAccumulationRate$ ~ $GrazingHt$ +  $GrazingHt^2$  
 
 We've already fitted a first model. Let's fit linear regression models for the next two parameter combinations we're interested in. We will give them unique names (`lm2` and `lm3`), and look at the summary of their results.
 
 ```{r}
 lm2 <- lm(HerbageAccumulationRate ~ GrazingHt, data = Grazing_Data)
-lm3 <- lm(HerbageAccumulationRate ~ GrazingHt + I(GrazingHt^2), data = Grazing_Data)
 summary(lm2)
+
+lm3 <- lm(HerbageAccumulationRate ~ GrazingHt + I(GrazingHt^2), data = Grazing_Data)
 summary(lm3)
 ```
 
-As you'll see, both of these models seem very strong good. Which is optimal? Akaike's Information Criteria (AIC) provides a good tool for comparing models. AIC ranks a model's performance by accounting for model fit while penalizing models with more variables. You might know that when you add more independent variables to a model, the model fit will often improve. But, it is certainly not ideal to have a model with a large number of independent variables (because we want to avoid overfitting). When adding a variable, the improved fit of the model must outweigh the AIC penalty, otherwise the improved fit will not be deemed worthwhile given the additional model complexity. 
+As you can see, both of these models seem very strong. Which of the two is best? Akaike's Information Criteria (AIC) provides a useful tool for comparing models. AIC ranks a model's performance by accounting for model fit while penalizing models with more variables. You might know that when you add more independent variables to a model, the model fit will often improve. But, it is certainly not ideal to have a model with a large number of independent variables (because we want to avoid overfitting). When adding a variable, the improved fit of the model must outweigh the AIC penalty, otherwise the improved fit will not be deemed worthwhile given the additional model complexity. 
 
 Use the `AIC` function to compare the AIC values of our next models. The lowest AIC indicates that the model is a "better" representation of the data and has a better predictive power. Note, AIC is not a measure of model fit. 
 
@@ -259,122 +258,59 @@ AIC(lm2)
 AIC(lm3)
 ```
 
-What can we conclude? The best model (from the two we have tried) for predicting herbage accumulation rate assumes a non-linear (quadratic) relationship is best (`lm3`). In plain language, what we are seeing is 1) that pasture that is grazed short grows at a slower rate than pasture that is grazed higher, and 2) that accumulation rate levels off at values between 20-25cm.
+The best model (from the two we have tried) for predicting herbage accumulation rate assumes a non-linear (quadratic) relationship is best (`lm3`).
 
-To finish, let's make a plot with o
+Let's make a plot showing the predicted relationship between grazing height and herbage accumulation rate. To show confidence intervals, we will use our model to predict accumulation rate across a range of grazing height values from 0 to 40.
 
+```{r}
+# Create a new sequence of grazing height values
 new_GrazingHt = seq(0, 40, by=0.1)
+
+# Use the 'predict' function to predict the herbage accumulation rate across the range of grass height
 conf_interval <- predict(lm3, newdata=data.frame(GrazingHt=new_GrazingHt), interval="confidence", level = 0.95)
-plot(Grazing_Data$GrazingHt, Grazing_Data$HerbageAccumulationRate, xlab="x", ylab="y", main="Regression", cex=2, pch=19)
+
+# Make a scatterplot of the observed data points
+plot(Grazing_Data$GrazingHt, Grazing_Data$HerbageAccumulationRate,
+     xlab="Grazing Height",
+     ylab="Herbage Accumulation Rate",
+     main="Relationship between Grazing Height and Herbage Accumulation Rate",
+     cex=2, pch=19)
+
+# Add lines that plot the mean, upper confidence interval, and lower confidence interval
 lines(new_GrazingHt, conf_interval[,1], col="blue", lwd=2)
 lines(new_GrazingHt, conf_interval[,2], col="blue", lty=2, lwd=2)
 lines(new_GrazingHt, conf_interval[,3], col="blue", lty=2,lwd=2)
+```
 
+With a little extra work (not shown here), we can also use predictions from our model to calculate the estimated annual herbage production in pastures grazed at various heights. As a single point for comparison, we can see that a pasture grazed to 2cm height would be expected to have only about 20% of the annual production of a pasture grazed to 30-40cm!
 
+```{r, echo=F}
+RefPts <- new_GrazingHt[c(21, 51, 101, 201, 301, 401)]
+RefAcc <- conf_interval[c(21, 51, 101, 201, 301, 401),]*365/2000
+barplot(RefAcc[,1], names.arg = RefPts,
+        xlab="Grazing Height (cm)", 
+        ylab="Annual Herbage Production (t DM/ha)",
+        main="Predicted Annual Herbage Production by Grazing Intensity")
 
+```
 
+## Initial Findings
 
-
-**Questions**: 
-
-1. Can you change the number of rows that are displayed with the `head()` function?  
-2. How would you print the first 3 rows?
-3. How would you print rows 4 thru 6? 
-4. What are the dimensions of the dataframe?  How many rows and columns are there?
-5. Can you guess how you might look at the last few rows of the dataframe?
+What can we conclude? In plain language, what we are seeing is 1) that pasture that is grazed short grows back at a slower rate than pasture that is grazed higher, and 2) that accumulation rate levels off at values between 20-25cm.
 
 ## Exercise
 
-Now that you've been exposed to a few functions to better manage data in R, we will reinforce these tools by asking you to apply them to memory by practicing on a dataset of wildlife counts collected across the Naboisho conservancy.  Located in your `Data` folder and named `SampleData.csv`, these data are derived from our publication in the African Journal of Ecology that forms the foundation for this project.
+Now that you've seen a few examples of linear regression models in R, let's practice what you've learned by making new models for cattle weight gain!  
 
-<div style="float:right">
-<img width="150" height="150" src="DataScience.png">
-</div>
+Please create a script named `Exercise_Regression.R`.  Format the script like we have instructed you to do with your `Name`, `Date`, and `Description`.  Fully comment your code to answer the questions below.   
 
-Upon import you will note that the dataset is comprised of 5 columns:
+1) What is the effect of herbage mass on cattle weight gain?
+2) What is the equation for the best-fit line (look at your coefficients)?
+2) Is a quadratic (non-linear) model with Herbage Mass better than a simple linear model?
+3) Can you find a better model for cattle weight gain?
+4) Does this model meet Assumptions 1, 2, and 5?
+5) Explore this dataset and fit some other models that seem interesting to you.
 
-* `Date`: The date the transect was conducted
-* `Species`: Species name
-* `GroupSize`: Total number of animals in the counted group
-* `TransectID`: Name of each transect
-* `Year`: Year in which the data were collected
+Challenge Question:
 
-Please create a script named `Exercise1_DataMgmt.R`.  Format the script like we have instructed to do so in this lecture with your `Name`, `Date`, and `Description`.  Then, read in the data and create a fully commented code to answer the following questions:   
-
-1) What are the dimensions of the dataset?  How many rows and columns exist?
-2) What is the data structure of each variable?
-3) How many species were counted?
-4) How many transects are there and what are the names of these transects?
-5) How many unique survey days were completed?  What is the range of dates?
-
-Please use a %>% for the followings questions (you don't need to save the output):
-
-6) What is the maximum group size of giraffe?
-7) What is the mean group size of wildebeest per year?  Include the number of observations in the calculation.
-8) What is the total count of impala observed in 2018?
-9) What is the total number of groups of each species per year?
-10) What is the total number of groups and the mean group size of each species, per year, and per transect?  Sort these by Species, TransectID, and Year.
-
-**Note**: We didn't go over every function to answer these questions.  You may need to troubleshoot and search the web to find the appropriate function.  Remember to use `R-Cran` when searching to limit/fine tune your search.  Using `dplyr` in your search term can also help in narrowing down your search.
-
-The data used for this exercise can be referenced as:
-
-Crego RD, Wells HBM, Connette G, Stabach JA, Soit N, Thompson S. 2023. Monitoring spatiotemporal dynamics of large herbivores across an African rangeland using hierarchical multi-species distance sampling. African Journal of Ecology. [doi:10.1111/aje.13219](https://onlinelibrary.wiley.com/doi/10.1111/aje.13219)
-
-```{r, warning=T, message=T, echo=F, eval=F}
-# Read in the CSV
-survey_sample <- read.csv(file = "Data/SampleData.csv")
-
-# Look at the data
-head(survey_sample)
-
-# Question 1: What are the dimensions of the dataset?  How many rows and columns?
-dim(survey_sample)
-nrow(survey_sample)
-ncol(survey_sample)
-
-# Question 2: What is the data structure of each variable?
-str(survey_sample)
-
-# Question 3: How many species were counted?  
-length(unique(survey_sample$Species))
-n_distinct(survey_sample$Species)
-
-# Question 4: How many transects are there and what are the names of these transects?  Same process, but a different column.
-n_distinct(survey_sample$TransectID)
-unique(survey_sample$TransectID)
-
-# Question 5: How many unique survey days were completed?  What is the range of dates?
-length(unique(survey_sample$Date))
-min(survey_sample$Date)
-max(survey_sample$Date)
-
-# Question 6: What is the maximum group size of giraffe?
-survey_sample %>% 
-  filter(Species == "Giraffe") %>% 
-  summarise(max_grp = max(GroupSize))
-
-# Question 7: What is the mean group size of wildebeest per year?  Include the number of observations in the calculation.
-survey_sample %>% 
-  filter(Species == "Wildebeest") %>% 
-  summarise(mean_grp = mean(GroupSize),
-            n_obs = n(), # This counts the observations, it is not a sum of the observations.
-            .by=Date) 
-
-# Question 8: What is the total count of impala observed in 2018?
-survey_sample %>% 
-  filter(Species == "Impala" & Year == "2018") %>%
-  summarise(sum_impala = sum(GroupSize))
-  
-# Question 9: What is the total number of groups of each species per year?
-survey_sample %>% 
-  summarise(Total_Grps = n(),
-            .by=c(Species, Year))
-  
-# Question 10: What is the total number of groups and the mean group size of each species, per year, and per transect?  Sort these by Species, TransectID, and Year
-survey_sample %>% 
-  summarise(Total_Grps = n(),
-            Mean_Grps = mean(GroupSize),
-            .by = c(Species, Year, TransectID)) %>% 
-  arrange(Species, TransectID, Year)
-```
+6) Fit a model with weight gain predicted by stocking rate. At **exactly** what Stocking Rate threshold does the model predict that cattle can no longer gain weight (i.e., where predicted weight gain is == 0). Hint: you will need to do some math with the regression equation to figure out where along the x-axis cattle weight gain switches to negative values.
